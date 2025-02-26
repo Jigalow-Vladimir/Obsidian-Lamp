@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using Obsidian_Lamp_Helper.Models;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -19,5 +20,8 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+
+        Game game = new Game();
+        MessageBox.Show(game.Packs.ToString());
     }
 }
