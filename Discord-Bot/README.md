@@ -3,9 +3,12 @@
 
 ```
 {
-    "discord-bot-token" : "токен вашего дискорд бота",
-    "discord-guild-id" : "айди вашего сервера",
-    "openAI-api-key" : "ваш ключ для OpenAI API",
-    "cloudflare-api-key" : "ваш ключ для Cloudflare API"
+  "discord-bot-token": "...",
+  "discord-guild-id": "...",
+  "openAI-api-key": "...",
+  "cloudflare-api-key": "...",
+  "cloudflare-account-id": "...",
+  "cloudflare-namespace-events": "...",
+  "cloudflare-namespace-schedule": "..."
 }
 ```

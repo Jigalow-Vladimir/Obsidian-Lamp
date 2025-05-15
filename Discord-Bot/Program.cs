@@ -1,23 +1,18 @@
-﻿using System.Text.Json;
-using Discord;
+﻿using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Discord_Bot
 {
-    public class Program
+    public static class Program
     {
-        private const string _credentialsPath = "credentials.json";
-        private static Dictionary<string, string> _credentials = [];
         private static DiscordSocketClient _client = new ();
         private static IServiceProvider? _service = null;
         private static InteractionService? _interactionService = null;
 
         public static async Task Main()
         {
-            var credentialsInit = InitializeCredentials();
-         
             _client.Log += Log;
             _client.Ready += OnReady;
 
@@ -28,11 +23,11 @@ namespace Discord_Bot
                 .AddSingleton(_interactionService)
                 .BuildServiceProvider();
 
-            _credentials = await credentialsInit;
-
             _client.InteractionCreated += OnInteractionCreated;
 
-            await _client.LoginAsync(TokenType.Bot, _credentials["discord-bot-token"]);
+            await Resources.SetCredentialsAsync();
+
+            await _client.LoginAsync(TokenType.Bot, Resources.Credentials["discord-bot-token"]);
             await _client.StartAsync();
 
             await Task.Delay(-1);
@@ -46,13 +41,10 @@ namespace Discord_Bot
 
         private static async Task OnReady()
         {
-            if (ulong.TryParse(_credentials["discord-guild-id"], out ulong guildId))
+            if (ulong.TryParse(Resources.Credentials["discord-guild-id"], out ulong guildId) && _interactionService != null)
             {
-                if (_interactionService != null)
-                {
-                    await _interactionService.AddModulesAsync(typeof(Program).Assembly, _service);
-                    await _interactionService.RegisterCommandsToGuildAsync(guildId);
-                }
+                await _interactionService.AddModulesAsync(typeof(Program).Assembly, _service);
+                await _interactionService.RegisterCommandsToGuildAsync(guildId);
             }
 
             Console.WriteLine("Ready");
@@ -65,17 +57,6 @@ namespace Discord_Bot
                 var context = new SocketInteractionContext(_client, interaction);
                 await _interactionService.ExecuteCommandAsync(context, _service);
             }
-        }
-
-        private static async Task<Dictionary<string, string>> InitializeCredentials()
-        {
-            if (!File.Exists(_credentialsPath)) return []; 
-
-            var credentials = JsonSerializer
-                .Deserialize<Dictionary<string, string>>(await File
-                    .ReadAllTextAsync(_credentialsPath));
-
-            return credentials ?? [];
         }
     }
 }
