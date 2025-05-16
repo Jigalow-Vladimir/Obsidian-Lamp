@@ -9,18 +9,18 @@ namespace Discord_Bot.Modules
 {
     public class ScheduleSlashCommandModule : InteractionModuleBase<SocketInteractionContext>
     {
-        private readonly CloudflareApiHandler _api = new(Resources.Credentials["cloudflare-namespace-schedule"]);
-        private readonly CloudflareApiHandler _api2 = new(Resources.Credentials["cloudflare-namespace-events"]);
+        private readonly CloudflareApiHandler _apiSchedule = new(Resources.Credentials["cloudflare-namespace-schedule"]);
+        private readonly CloudflareApiHandler _apiEvents = new(Resources.Credentials["cloudflare-namespace-events"]);
         private readonly JsonSerializerOptions _jsonOptions = new()
         {
             WriteIndented = true
         };
 
-        [SlashCommand("schedule-get", "Echo an event in schedule by id")]
+        [SlashCommand("schedule-get", "Выводит событие в расписании по ключу")]
         public async Task Get(string key)
         {
             await RespondAsync("Process...", ephemeral: true);
-            var result = await _api.GetAsync(key);
+            var result = await _apiSchedule.GetAsync(key);
 
             var channel = Context.Channel as ITextChannel;
 
@@ -28,66 +28,67 @@ namespace Discord_Bot.Modules
                 await channel.SendMessageAsync("Get: " + result);
         }
 
-        [SlashCommand("schedule-put", "put an event in schedule")]
+        [SlashCommand("schedule-put", "Добавляет событие в расписания")]
         public async Task Put(
-            string name,
-            IUser lead,
-            DateTime date)
+            [Summary("Событие")] string name,
+            [Summary("Ведущий")] IUser lead,
+            [Summary("Дата", "Устанавливать по этому шаблону: `dd.mm.yyyy hh:mm`")] DateTime date)
         {
             await RespondAsync("Process...", ephemeral: true);
 
-            var schedulePart = new SchedulePart(
+            var part = new SchedulePart(
                 name,
                 lead.Id,
                 date);
 
-            string json = JsonSerializer.Serialize(schedulePart, _jsonOptions);
-
-            await _api.PutAsync(schedulePart.Key, json);
+            await _apiSchedule.PutAsync(part.Key, 
+                JsonSerializer.Serialize(part, _jsonOptions));
 
             var channel = Context.Channel as ITextChannel;
-
             if (channel != null)
-                await channel.SendMessageAsync($"Put: success");
+                await channel.SendMessageAsync(embed: new EmbedBuilder()
+                    .WithTitle("Put: Success")
+                    .WithColor(Color.Green)
+                    .WithDescription(part.ToString()).Build());
         }
 
-        [SlashCommand("schedule-delete", "delete an event in schedule")]
-        public async Task Delete(string key)
+        [SlashCommand("schedule-delete", "Удаляет событие из расписания")]
+        public async Task Delete(
+            [Summary("Ключ")] string key)
         {
             await RespondAsync("Process...", ephemeral: true);
-            await _api.DeleteAsync(key);
+
+            await _apiSchedule.DeleteAsync(key);
 
             var channel = Context.Channel as ITextChannel;
-
             if (channel != null)
-                await channel.SendMessageAsync($"Delete: success");
+                await channel.SendMessageAsync(embed: new EmbedBuilder()
+                    .WithTitle("Delete: Success")
+                    .WithColor(Color.Red).Build());
         }
 
-        [SlashCommand("schedule-list", "list all events in schedule")]
+        [SlashCommand("schedule-list", "Выводит события в расписании")]
         public async Task List(
+            [Summary("Количество", "Максимум 25")]
             [MaxValue(EmbedBuilder.MaxFieldCount)]
             [MinValue(1)]
             uint count = 1)
         {
             await RespondAsync("Process...", ephemeral: true);
-            var result = await _api.GetAllAsync();
 
-            using var docs = JsonDocument.Parse(result);
-
-            var channel = Context.Channel as ITextChannel;
-            var resultElement = docs.RootElement.GetProperty("result");
-
-            var keys = JsonSerializer.Deserialize<List<ResultItem>>(resultElement, _jsonOptions);
-
-            List<Part> parts = new();
+            var keys = JsonSerializer
+                .Deserialize<List<ResultItem>>(JsonDocument
+                    .Parse(await _apiSchedule.GetAllAsync()).RootElement
+                        .GetProperty("result"), _jsonOptions);
 
             if (keys == null)
                 return;
 
+            List<Part> parts = new();
             for (int i = 0; i < count && i < keys.Count; i++)
             {
-                var json = await _api.GetAsync(keys[i].Name);
-                var part = JsonSerializer.Deserialize<Part>(json, _jsonOptions);
+                var part = JsonSerializer.Deserialize<Part>(
+                    await _apiSchedule.GetAsync(keys[i].Name), _jsonOptions);
 
                 if (part == null)
                     continue;
@@ -95,38 +96,34 @@ namespace Discord_Bot.Modules
                 parts.Add(part);
             }
 
+            var channel = Context.Channel as ITextChannel;
             if (channel != null)
-            {
-                EmbedBuilder embedBuilder = new EmbedBuilder()
-                    .WithTitle("Расписание")
+                await channel.SendMessageAsync(embed: new EmbedBuilder()
+                    .WithTitle("События")
                     .WithColor(Color.Blue)
                     .WithFields(parts
                         .Select(p => new EmbedFieldBuilder()
                             .WithName(p.Key)
-                            .WithValue(p.ToString())));
-
-                await channel.SendMessageAsync(embed: embedBuilder.Build());
-            }
+                            .WithValue(p.ToString()))).Build());
         }
 
-        [SlashCommand("schedule-complete", "complete an event in schedule")]
+        [SlashCommand("schedule-complete", "Подтверждает выполнение события в расписании")]
         public async Task Complete(
-            string key, 
-            IUser? activeUser1 = null, 
-            IUser? activeUser2 = null, 
-            IUser? activeUser3 = null)
+            [Summary("ключ")] string key, 
+            [Summary("активный_участник_1")] IUser? activeUser1 = null,
+            [Summary("активный_участник_2")] IUser? activeUser2 = null,
+            [Summary("активный_участник_3")] IUser? activeUser3 = null)
         {
             await RespondAsync("Process...", ephemeral: true);
-            var result = await _api.GetAsync(key);
+            
+            var schedulePart = JsonSerializer.Deserialize<SchedulePart>(
+                await _apiSchedule.GetAsync(key), _jsonOptions);
 
-            var schedulePart = JsonSerializer.Deserialize<SchedulePart>(result, _jsonOptions);
             if (schedulePart == null)
                 return;
 
-            var part = new Part(
-                schedulePart.Name,
-                schedulePart.LeadId,
-                schedulePart.Date, 
+            var part = Part.GetModified(
+                schedulePart,
                 activeUser1 == null ? 0 : activeUser1.Id,
                 activeUser2 == null ? 0 : activeUser2.Id,
                 activeUser3 == null ? 0 : activeUser3.Id);
@@ -134,20 +131,17 @@ namespace Discord_Bot.Modules
             if (part == null)
                 return;
 
-            string json = JsonSerializer.Serialize(part, _jsonOptions);
+            await _apiEvents.PutAsync(schedulePart.Key, 
+                JsonSerializer.Serialize(part, _jsonOptions));
 
-            await _api2.PutAsync(schedulePart.Key, json);
-            await _api.DeleteAsync(key);
+            await _apiSchedule.DeleteAsync(key);
 
             var channel = Context.Channel as ITextChannel;
             if (channel != null)
-                await channel.SendMessageAsync("Complete: " + result);
-        }
-
-        public class ResultItem
-        {
-            [JsonPropertyName("name")]
-            public string Name { get; set; } = "";
+                await channel.SendMessageAsync(embed: new EmbedBuilder()
+                    .WithTitle("Complete: Success")
+                    .WithColor(Color.Green)
+                    .Build());
         }
     }
 }

@@ -1,4 +1,7 @@
-﻿namespace Discord_Bot.Models
+﻿using System.Text;
+using System.Text.Json;
+
+namespace Discord_Bot.Models
 {
     public class Part : SchedulePart
     {
@@ -25,9 +28,47 @@
                 ActiveUsers.Add(activeUserId3);
         }
 
-        public Part() 
+        public Part()
         {
             ActiveUsers = new List<ulong>();
+        }
+
+        public static Part PartFromJson(string fromJson)
+        {
+            var part = JsonSerializer.Deserialize<Part>(fromJson);
+            if (part == null)
+                throw new JsonException("Failed to deserialize Part");
+            return part;
+        }
+
+        public override string ToString()
+        {
+            var sb = new StringBuilder(base.ToString());
+
+            if (ActiveUsers.Count == 0)
+                return sb.ToString();
+
+            sb.AppendLine("\nАктивные игроки:");
+            foreach (var user in ActiveUsers)
+                if (user != 0)
+                    sb.AppendLine($"> - <@{user}>");
+            
+            return sb.ToString();
+        }
+
+        public static Part GetModified(
+            SchedulePart schedulePart,
+            ulong user1,
+            ulong user2,
+            ulong user3)
+        {
+            return new Part(
+                schedulePart.Name,
+                schedulePart.LeadId,
+                schedulePart.Date,
+                user1,
+                user2,
+                user3);
         }
     }
 }

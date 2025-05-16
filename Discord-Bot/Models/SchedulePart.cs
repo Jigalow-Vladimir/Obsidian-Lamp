@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+﻿using System.Text.Json;
 
 namespace Discord_Bot.Models
 {
@@ -17,9 +17,7 @@ namespace Discord_Bot.Models
             this.Name = name;
             this.LeadId = leadId;
             this.Date = date;
-            this.Key = $"{date.DayOfWeek}-" +
-                $"{date.Date.Day}.{date.Date.Month}.{date.Date.Year}-" +
-                $"{Guid.NewGuid().ToString("N")}";
+            this.Key = $"{date.ToString($"yy.MM.dd-HH:mm-ddd")}";
         }
 
         public SchedulePart() 
@@ -37,6 +35,14 @@ namespace Discord_Bot.Models
                 $"> `Игра` → {Name}\n" +
                 $"> `Ведущий` → <@{LeadId}>\n" +
                 $"> `Id` → {LeadId}";
+        }
+
+        public static SchedulePart SchedulePartFromJson(string fromJson)
+        {
+            var part = JsonSerializer.Deserialize<SchedulePart>(fromJson);
+            if (part == null)
+                throw new JsonException("Failed to deserialize SchedulePart");
+            return part;
         }
     }
 }
