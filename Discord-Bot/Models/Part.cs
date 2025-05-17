@@ -6,31 +6,35 @@ namespace Discord_Bot.Models
     public class Part : SchedulePart
     {
         public List<ulong> ActiveUsers { get; set; }
+        public DateTime EndDate { get; set; }
 
         public Part(
             string name,
             ulong leadId,
-            DateTime date,
+            DateTime startDate,
+            DateTime endTime,
             ulong activeUserId1 = 0,
             ulong activeUserId2 = 0,
             ulong activeUserId3 = 0) : 
-                base(name, leadId, date)
+                base(name, leadId, startDate)
         {
-            ActiveUsers = [];
+            this.EndDate = endTime;
+
+            this.ActiveUsers = [];
 
             if (activeUserId1 != 0)
-                ActiveUsers.Add(activeUserId1);
+                this.ActiveUsers.Add(activeUserId1);
 
             if (activeUserId2 != 0)
-                ActiveUsers.Add(activeUserId2);
+                this.ActiveUsers.Add(activeUserId2);
 
             if (activeUserId3 != 0)
-                ActiveUsers.Add(activeUserId3);
+                this.ActiveUsers.Add(activeUserId3);
         }
 
         public Part()
         {
-            ActiveUsers = new List<ulong>();
+            this.ActiveUsers = new List<ulong>();
         }
 
         public static Part PartFromJson(string fromJson)
@@ -45,10 +49,13 @@ namespace Discord_Bot.Models
         {
             var sb = new StringBuilder(base.ToString());
 
-            if (ActiveUsers.Count == 0)
+            sb.AppendLine();
+            sb.AppendLine($"> `Дата конца` → {EndDate}");
+
+            if (this.ActiveUsers.Count == 0)
                 return sb.ToString();
 
-            sb.AppendLine("\nАктивные игроки:");
+            sb.AppendLine("Активные игроки:");
             foreach (var user in ActiveUsers)
                 if (user != 0)
                     sb.AppendLine($"> - <@{user}>");
@@ -56,8 +63,9 @@ namespace Discord_Bot.Models
             return sb.ToString();
         }
 
-        public static Part GetModified(
+        public static Part ModifyToPart(
             SchedulePart schedulePart,
+            DateTime endTime,
             ulong user1,
             ulong user2,
             ulong user3)
@@ -65,7 +73,8 @@ namespace Discord_Bot.Models
             return new Part(
                 schedulePart.Name,
                 schedulePart.LeadId,
-                schedulePart.Date,
+                schedulePart.StartDate,
+                endTime,
                 user1,
                 user2,
                 user3);

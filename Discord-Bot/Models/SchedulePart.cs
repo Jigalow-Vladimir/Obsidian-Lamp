@@ -7,7 +7,7 @@ namespace Discord_Bot.Models
         public string Key { get; set; }
         public string Name { get; set; }
         public ulong LeadId { get; set; }
-        public DateTime Date { get; set; }
+        public DateTime StartDate { get; set; }
 
         public SchedulePart(
             string name, 
@@ -16,22 +16,23 @@ namespace Discord_Bot.Models
         {
             this.Name = name;
             this.LeadId = leadId;
-            this.Date = date;
-            this.Key = $"{date.ToString($"yy.MM.dd-HH:mm-ddd")}";
+            this.StartDate = date;
+            this.Key = $"{date.ToString($"yyMMddHHmmddd")}-" +
+                $"{DateTime.Now.ToString("ddMMyyHHmm")}";
         }
 
         public SchedulePart() 
         {
             this.Name = string.Empty;
             this.LeadId = 0;
-            this.Date = DateTime.MinValue;
+            this.StartDate = DateTime.MinValue;
             this.Key = string.Empty;
         }
 
         public override string ToString()
         {
             return 
-                $"> `Дата` → {Date}\n" +
+                $"> `Дата начала` → {StartDate}\n" +
                 $"> `Игра` → {Name}\n" +
                 $"> `Ведущий` → <@{LeadId}>\n" +
                 $"> `Id` → {LeadId}";

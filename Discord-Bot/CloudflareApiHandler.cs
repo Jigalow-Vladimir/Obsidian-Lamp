@@ -10,12 +10,12 @@ namespace Discord_Bot
         {
             httpClient = new HttpClient();
             httpClient.DefaultRequestHeaders.Authorization =
-                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", 
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",
                     Resources.Credentials["cloudflare-api-key"]);
 
-            _namespaceName = namespaceName; 
+            _namespaceName = namespaceName;
 
-            string uri = 
+            string uri =
                 $"{_baseAdress.TrimEnd('/')}/accounts/" +
                 $"{Resources.Credentials["cloudflare-account-id"]}" +
                 $"/storage/kv/namespaces/" +
@@ -25,41 +25,86 @@ namespace Discord_Bot
             httpClient.BaseAddress = new Uri(uri);
         }
 
-        public async Task<string> GetAsync(string key)
+        public async Task<(bool IsSuccess, string? Result)> GetAsync(string key)
         {
-            var result = await (await httpClient.GetAsync(key)).Content.ReadAsStringAsync();
-            return result ?? "";
+            try
+            {
+                var response = await httpClient.GetAsync(key);
+                if (!response.IsSuccessStatusCode)
+                    return (false, $"GET error: {response.StatusCode}");
+
+                var content = await response.Content.ReadAsStringAsync();
+                return (true, content ?? "");
+            }
+            catch (Exception ex)
+            {
+                return (false, $"GET exception: {ex.Message}");
+            }
         }
 
-        public async Task PutAsync(string key, string value)
+        public async Task<(bool IsSuccess, string? ErrorMessage)> PutAsync(string key, string value)
         {
-            var content = new StringContent(value);
+            try
+            {
+                if (httpClient.BaseAddress == null)
+                    return (false, "BaseAddress is null");
 
-            if (httpClient.BaseAddress == null)
-                return;
+                var content = new StringContent(value);
+                var response = await httpClient.PutAsync(new Uri(httpClient.BaseAddress, key), content);
 
-            await httpClient.PutAsync(new Uri(httpClient.BaseAddress, key), content);
+                if (!response.IsSuccessStatusCode)
+                    return (false, $"PUT error: {response.StatusCode}");
+
+                return (true, null);
+            }
+            catch (Exception ex)
+            {
+                return (false, $"PUT exception: {ex.Message}");
+            }
         }
 
-        public async Task DeleteAsync(string key)
+        public async Task<(bool IsSuccess, string? ErrorMessage)> DeleteAsync(string key)
         {
-            if (httpClient.BaseAddress == null)
-                return;
+            try
+            {
+                if (httpClient.BaseAddress == null)
+                    return (false, "BaseAddress is null");
 
-            await httpClient.DeleteAsync(new Uri(httpClient.BaseAddress, key));
+                var response = await httpClient.DeleteAsync(new Uri(httpClient.BaseAddress, key));
+
+                if (!response.IsSuccessStatusCode)
+                    return (false, $"DELETE error: {response.StatusCode}");
+
+                return (true, null);
+            }
+            catch (Exception ex)
+            {
+                return (false, $"DELETE exception: {ex.Message}");
+            }
         }
 
-        public async Task<string> GetAllAsync()
+        public async Task<(bool IsSuccess, string? Result)> GetAllAsync()
         {
-            string uri =
-                $"{_baseAdress.TrimEnd('/')}/accounts/" +
-                $"{Resources.Credentials["cloudflare-account-id"]}" +
-                $"/storage/kv/namespaces/" +
-                $"{_namespaceName}" +
-                $"/keys";
+            try
+            {
+                string uri =
+                    $"{_baseAdress.TrimEnd('/')}/accounts/" +
+                    $"{Resources.Credentials["cloudflare-account-id"]}" +
+                    $"/storage/kv/namespaces/" +
+                    $"{_namespaceName}" +
+                    $"/keys";
 
-            var result = await (await httpClient.GetAsync(uri)).Content.ReadAsStringAsync();
-            return result;
+                var response = await httpClient.GetAsync(uri);
+                if (!response.IsSuccessStatusCode)
+                    return (false, $"GET ALL error: {response.StatusCode}");
+
+                var content = await response.Content.ReadAsStringAsync();
+                return (true, content ?? "");
+            }
+            catch (Exception ex)
+            {
+                return (false, $"GET ALL exception: {ex.Message}");
+            }
         }
     }
 }

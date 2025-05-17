@@ -1,3 +1,6 @@
 # Obsidian-Lamp
 
-[Discord-Bot](./Discord-Bot/README.md)
+Данный проект содержит определения настольных игр, а также инструменты взаимодействия с статистикой активности игроков
+
+### Приложения:
+[Discord-Bot](./Discord-Bot/README.md) - Предназначен для упрощения проведения настольных игр. Взаимдействует с АПИ OpenAI, Firebase Cloudflare  и Discord. 
