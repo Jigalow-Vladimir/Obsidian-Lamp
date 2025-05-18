@@ -44,11 +44,14 @@ namespace Discord_Bot.SlashCommandModules
             if (channel == null)
                 return;
 
-            if (lead == null) lead = Context.User as IUser;
+            if (lead == null) lead = Context.User;
             var (success, result) = await LeadModule.GetAsync(lead.Id.ToString());
 
             if (!success)
+            {
                 await channel.SendMessageAsync(result);
+                return;
+            }
 
             await channel.SendMessageAsync(embed: new EmbedBuilder()
                 .WithTitle("Ведущий")

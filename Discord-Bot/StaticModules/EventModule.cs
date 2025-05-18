@@ -22,7 +22,7 @@ namespace Discord_Bot.StaticModules
             if (!success)
                 return (false, $"Ошибка удаления: {result}");
 
-            (success, result) = await LeadModule.DecrementEventsCountAsync(part.LeadId.ToString(), part.StartDate);
+            (success, result) = await LeadModule.DecrementEventsCountAsync(part.LeadsIds, part.StartDate);
 
             if (!success)
                 return (false, $"Ошибка уменьшения счетчика событий: {result}");
@@ -51,15 +51,34 @@ namespace Discord_Bot.StaticModules
 
         public static async Task<(bool isSuccess, string? result)> PutAsync(
             string name,
-            ulong leadId,
+            ulong lead1Id,
             DateTime startDate,
             DateTime endDate,
+            ulong? lead2Id,
+            ulong? lead3Id,
             ulong? user1Id,
             ulong? user2Id,
             ulong? user3Id)
         {
-            var part = new Part(name, leadId, startDate, endDate,
-            user1Id ?? 0, user2Id ?? 0, user3Id ?? 0);
+            var leads = new List<ulong> { lead1Id };
+
+            if (lead2Id != null)
+                leads.Add((ulong)lead2Id);
+
+            if (lead3Id != null)
+                leads.Add((ulong)lead3Id);
+
+            var users = new List<ulong>();
+            if (user1Id != null)
+                users.Add((ulong)user1Id);
+
+            if (user2Id != null)
+                users.Add((ulong)user2Id);
+
+            if (user3Id != null)
+                users.Add((ulong)user3Id);
+
+            var part = new Part(name, leads, startDate, endDate, users);
 
             var json = JsonSerializer.Serialize(part, _jsonOptions);
             var (success, result) = await _api.PutAsync(part.Key, json);
@@ -67,8 +86,8 @@ namespace Discord_Bot.StaticModules
             if (!success)
                 return (false, result);
 
-            (success, result) = await LeadModule.IncrementEventsCountAsync(leadId.ToString(), startDate);
-
+            (success, result) = await LeadModule.IncrementEventsCountAsync(leads, startDate);
+            
             return (true, result);
         }
 

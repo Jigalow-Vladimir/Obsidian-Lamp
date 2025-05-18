@@ -31,9 +31,22 @@ namespace Discord_Bot.StaticModules
             return (true, result);
         }
         
-        public static async Task<(bool Success, string Result)> PutAsync(string name, ulong leadId, DateTime date) 
+        public static async Task<(bool Success, string Result)> PutAsync(
+            string name, 
+            ulong lead1Id, 
+            DateTime date,
+            ulong? lead2Id,
+            ulong? lead3Id) 
         {
-            var part = new SchedulePart(name, leadId, date);
+            var leads = new List<ulong> { lead1Id };
+
+            if (lead2Id != null)
+                leads.Add((ulong)lead2Id);
+
+            if (lead3Id != null)
+                leads.Add((ulong)lead3Id);
+
+            var part = new SchedulePart(name, leads, date);
 
             var json = JsonSerializer.Serialize(part, _jsonOptions);
             
@@ -96,12 +109,21 @@ namespace Discord_Bot.StaticModules
             if (schedulePart == null)
                 return (false, "Ошибка при десериализации события");
 
+            var usersIds = new List<ulong>();
+
+            if (user1Id != null)
+                usersIds.Add((ulong)user1Id);
+
+            if (user2Id != null)
+                usersIds.Add((ulong)user2Id);
+
+            if (user3Id != null)
+                usersIds.Add((ulong)user3Id);
+
             var part = Part.ModifyToPart(
                 schedulePart,
                 endTime,
-                user1Id ?? 0,
-                user2Id ?? 0,
-                user3Id ?? 0);
+                usersIds);
 
             if (part == null)
                 return (false, "Ошибка при формировании завершённого события");

@@ -10,7 +10,6 @@ namespace Discord_Bot.SlashCommandModules
     public class ScheduleSlashCommandModule : InteractionModuleBase<SocketInteractionContext>
     {
         private readonly CloudflareApiHandler _apiSchedule = new(Resources.Credentials["cloudflare-namespace-schedule"]);
-        private readonly CloudflareApiHandler _apiEvents = new(Resources.Credentials["cloudflare-namespace-events"]);
         private readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
 
         [SlashCommand("get", "Выводит событие в расписании по ключу")]
@@ -51,8 +50,10 @@ namespace Discord_Bot.SlashCommandModules
         [SlashCommand("put", "Добавляет событие в расписание")]
         public async Task Put(
             [Summary("событие")] string name, 
-            [Summary("ведущий")] IUser lead, 
-            [Summary("дата_начала")] DateTime date)
+            [Summary("ведущий_1")] IUser lead1, 
+            [Summary("дата_начала")] DateTime date,
+            [Summary("ведущий_2")] IUser? lead2 = null,
+            [Summary("ведущий_3")] IUser? lead3 = null)
         {
             await RespondAsync("Process...", ephemeral: true);
             
@@ -60,7 +61,7 @@ namespace Discord_Bot.SlashCommandModules
             if (channel == null)
                 return;
 
-            var (success, result) = await ScheduleModule.PutAsync(name, lead.Id, date);
+            var (success, result) = await ScheduleModule.PutAsync(name, lead1.Id, date, lead2?.Id, lead3?.Id);
             if (!success)
             {
                 await channel.SendMessageAsync($"Ошибка при добавлении: {result}");

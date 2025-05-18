@@ -31,45 +31,53 @@ namespace Discord_Bot.StaticModules
         }
 
         /// Increment the events count for a lead <param name="key">Lead ID</param>
-        public static async Task<(bool, string?)> IncrementEventsCountAsync(string key, DateTime startTime)
+        public static async Task<(bool, string?)> IncrementEventsCountAsync(List<ulong> leadsIds, DateTime startTime)
         {
-            var (success, result) = await GetAsync(key);
-            if (!success)
-                return (false, result);
+            foreach (var key in leadsIds)
+            {
+                var (success, result) = await GetAsync(key.ToString());
+                
+                if (!success)
+                    continue;
+                
+                var lead = Lead.FromJson(result);
+                lead.GamesCount++;
+                
+                if (startTime.Month == DateTime.Now.Month)
+                    lead.GamesInCurrentMonthCount++;
 
-            var lead = Lead.FromJson(result);
-            lead.GamesCount++;
+                var json = JsonSerializer.Serialize(lead, _jsonOptions);
 
-            if (startTime.Month == DateTime.Now.Month)
-                lead.GamesInCurrentMonthCount++;
-
-            var json = JsonSerializer.Serialize(lead, _jsonOptions);
-            
-            var (putSuccess, error) = await _api.PutAsync(key, json);
-            if (!putSuccess)
-                return (false, error);
+                var (putSuccess, error) = await _api.PutAsync(key.ToString(), json);
+                if (!putSuccess)
+                    return (false, error);
+            }
 
             return (true, "Put: Success");
         }
 
         /// Decrement the events count for a lead <param name="key">Lead ID</param>
-        public static async Task<(bool, string?)> DecrementEventsCountAsync(string key, DateTime startTime)
+        public static async Task<(bool, string?)> DecrementEventsCountAsync(List<ulong> leads, DateTime startTime)
         {
-            var (success, result) = await GetAsync(key);
-            if (!success)
-                return (false, result);
+            foreach (var key in leads)
+            {
+                var (success, result) = await GetAsync(key.ToString());
 
-            var lead = Lead.FromJson(result);
-            lead.GamesCount--;
+                if (!success)
+                    continue;
 
-            if (startTime.Month == DateTime.Now.Month)
-                lead.GamesInCurrentMonthCount--;
+                var lead = Lead.FromJson(result);
+                lead.GamesCount--;
 
-            var json = JsonSerializer.Serialize(lead, _jsonOptions);
+                if (startTime.Month == DateTime.Now.Month)
+                    lead.GamesInCurrentMonthCount--;
 
-            var (putSuccess, error) = await _api.PutAsync(key, json);
-            if (!putSuccess)
-                return (false, error);
+                var json = JsonSerializer.Serialize(lead, _jsonOptions);
+                
+                var (putSuccess, error) = await _api.PutAsync(key.ToString(), json);
+                if (!putSuccess)
+                    return (false, error);
+            }
 
             return (true, "Put: Success");
         }

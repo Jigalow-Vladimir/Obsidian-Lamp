@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Text;
+using System.Text.Json;
 
 namespace Discord_Bot.Models
 {
@@ -6,36 +7,51 @@ namespace Discord_Bot.Models
     {
         public string Key { get; set; }
         public string Name { get; set; }
-        public ulong LeadId { get; set; }
+        public List<ulong> LeadsIds { get; set; }
         public DateTime StartDate { get; set; }
 
         public SchedulePart(
             string name, 
-            ulong leadId, 
+            List<ulong> leadsIds, 
             DateTime date)
         {
             this.Name = name;
-            this.LeadId = leadId;
+            this.LeadsIds = [];
+
+            if (leadsIds != null)
+            {
+                foreach (var leadId in leadsIds)
+                    this.LeadsIds.Add((leadId));
+            }
+
             this.StartDate = date;
             this.Key = $"{date.ToString($"yyMMddHHmmddd")}-" +
-                $"{DateTime.Now.ToString("ddMMyyHHmm")}";
+                $"{DateTime.Now:ddMMyyHHmm}";
         }
 
         public SchedulePart() 
         {
             this.Name = string.Empty;
-            this.LeadId = 0;
+            this.LeadsIds = [];
             this.StartDate = DateTime.MinValue;
             this.Key = string.Empty;
         }
 
         public override string ToString()
         {
-            return 
-                $"> `Дата начала` → {StartDate}\n" +
-                $"> `Игра` → {Name}\n" +
-                $"> `Ведущий` → <@{LeadId}>\n" +
-                $"> `Id` → {LeadId}";
+            var sb = new StringBuilder();
+            sb.AppendLine($"> `Дата начала` → {StartDate}");
+            sb.AppendLine($"> `Игра` → {Name}");
+
+            if (this.LeadsIds.Count == 0)
+                return sb.ToString();
+
+            sb.AppendLine("> Ведущие:");
+
+            foreach (var leadId in LeadsIds)
+                sb.AppendLine($"> - <@{leadId}>");
+
+            return sb.ToString();
         }
 
         public static SchedulePart SchedulePartFromJson(string fromJson)

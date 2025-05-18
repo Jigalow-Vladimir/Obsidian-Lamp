@@ -10,31 +10,26 @@ namespace Discord_Bot.Models
 
         public Part(
             string name,
-            ulong leadId,
+            List<ulong> leadsIds,
             DateTime startDate,
             DateTime endTime,
-            ulong activeUserId1 = 0,
-            ulong activeUserId2 = 0,
-            ulong activeUserId3 = 0) : 
-                base(name, leadId, startDate)
+            List<ulong> activeUsersIds) : 
+                base(name, leadsIds, startDate)
         {
             this.EndDate = endTime;
 
             this.ActiveUsers = [];
 
-            if (activeUserId1 != 0)
-                this.ActiveUsers.Add(activeUserId1);
-
-            if (activeUserId2 != 0)
-                this.ActiveUsers.Add(activeUserId2);
-
-            if (activeUserId3 != 0)
-                this.ActiveUsers.Add(activeUserId3);
+            if (activeUsersIds != null)
+            {
+                foreach (var userId in activeUsersIds)
+                    this.ActiveUsers.Add(userId);
+            }
         }
 
         public Part()
         {
-            this.ActiveUsers = new List<ulong>();
+            this.ActiveUsers = [];
         }
 
         public static Part PartFromJson(string fromJson)
@@ -47,37 +42,38 @@ namespace Discord_Bot.Models
 
         public override string ToString()
         {
-            var sb = new StringBuilder(base.ToString());
+            var sb = new StringBuilder();
 
-            sb.AppendLine();
+            sb.AppendLine($"> `Дата начала` → {StartDate}");
             sb.AppendLine($"> `Дата конца` → {EndDate}");
+            sb.AppendLine($"> `Игра` → {Name}");
 
-            if (this.ActiveUsers.Count == 0)
+            if (this.LeadsIds.Count == 0)
                 return sb.ToString();
 
-            sb.AppendLine("Активные игроки:");
+            sb.AppendLine("> Ведущие: ");
+
+            foreach (var leadId in LeadsIds)
+                sb.AppendLine($"> - <@{leadId}>");
+
+            sb.AppendLine("> Активные игроки");
             foreach (var user in ActiveUsers)
-                if (user != 0)
-                    sb.AppendLine($"> - <@{user}>");
-            
+                sb.AppendLine($"> - <@{user}>");
+
             return sb.ToString();
         }
 
         public static Part ModifyToPart(
             SchedulePart schedulePart,
             DateTime endTime,
-            ulong user1,
-            ulong user2,
-            ulong user3)
+            List<ulong> usersIds)
         {
             return new Part(
                 schedulePart.Name,
-                schedulePart.LeadId,
+                schedulePart.LeadsIds,
                 schedulePart.StartDate,
                 endTime,
-                user1,
-                user2,
-                user3);
+                usersIds);
         }
     }
 }

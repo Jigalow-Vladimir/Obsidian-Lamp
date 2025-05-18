@@ -2,7 +2,6 @@ using Discord;
 using Discord.Interactions;
 using Discord_Bot.Models;
 using Discord_Bot.StaticModules;
-using System.Text.Json;
 
 namespace Discord_Bot.SlashCommandModules
 {
@@ -10,7 +9,7 @@ namespace Discord_Bot.SlashCommandModules
     public class EventSlashCommandModule : InteractionModuleBase<SocketInteractionContext>
     {
         [SlashCommand("get", "Выводит событие по ключу")]
-        public async Task Get([Summary("Ключ")] string key)
+        public async Task Get([Summary("ключ")] string key)
         {
             await RespondAsync("Process...", ephemeral: true);
 
@@ -35,10 +34,12 @@ namespace Discord_Bot.SlashCommandModules
         [RequireRole("Moderator")]
         [SlashCommand("put", "Устанавливает событие")]
         public async Task Put(
-            [Summary("Событие")] string name,
-            [Summary("Ведущий")] IUser lead,
-            [Summary("Дата_начала", "Шаблон: `dd.mm.yy hh:mm` -> 17.10.25 16:00 :")] DateTime startDate,
-            [Summary("Дата_конца", "Шаблон: `dd.mm.yy hh:mm` -> 17.10.25 17:00")] DateTime endDate,
+            [Summary("событие")] string name,
+            [Summary("ведущий_1")] IUser lead1,
+            [Summary("дата_начала", "Шаблон: `dd.mm.yy hh:mm` -> 17.10.25 16:00 :")] DateTime startDate,
+            [Summary("дата_конца", "Шаблон: `dd.mm.yy hh:mm` -> 17.10.25 17:00")] DateTime endDate,
+            [Summary("ведущий_2")] IUser? lead2 = null,
+            [Summary("ведущий_3")] IUser? lead3 = null,
             [Summary("активный_участник_1")] IUser? user1 = null,
             [Summary("активный_участник_2")] IUser? user2 = null,
             [Summary("активный_участник_3")] IUser? user3 = null)
@@ -48,8 +49,9 @@ namespace Discord_Bot.SlashCommandModules
             var channel = Context.Channel as ITextChannel;
             if (channel == null) return;
 
-            var (success, result) = await EventModule.PutAsync(name, lead.Id, startDate, endDate,
-                user1?.Id, user2?.Id, user3?.Id);
+            var (success, result) = await EventModule.PutAsync(
+                name, lead1.Id, startDate, endDate, 
+                lead2?.Id, lead3?.Id, user1?.Id, user2?.Id, user3?.Id);
 
             if (!success)
             {
@@ -64,7 +66,7 @@ namespace Discord_Bot.SlashCommandModules
         }
 
         [SlashCommand("delete", "Удаляет событие")]
-        public async Task Delete([Summary("Ключ")] string key)
+        public async Task Delete([Summary("ключ")] string key)
         {
             await RespondAsync("Process...", ephemeral: true);
 
@@ -86,7 +88,7 @@ namespace Discord_Bot.SlashCommandModules
 
         [SlashCommand("list", "Выводит указанное кол-во событий")]
         public async Task List(
-           [Summary("Количество", "Максимум 25")]
+           [Summary("количество", "Максимум 25")]
            [MaxValue(EmbedBuilder.MaxFieldCount)]
            [MinValue(1)]
            uint count = 1)
@@ -109,7 +111,7 @@ namespace Discord_Bot.SlashCommandModules
                 .WithColor(Color.Blue)
                 .WithFields(rawAll
                     .Select(p => new EmbedFieldBuilder()
-                        .WithName(p.Item1)
+                        .WithName("__" + p.Item1 + "__")
                         .WithValue(p.Item2)))
                 .Build());
         }
