@@ -44,21 +44,24 @@ namespace Discord_Bot.Models
         {
             var sb = new StringBuilder();
 
-            sb.AppendLine($"> `Дата начала` → {StartDate}");
-            sb.AppendLine($"> `Дата конца` → {EndDate}");
-            sb.AppendLine($"> `Игра` → {Name}");
+            sb.AppendLine($"> `date of start` → {StartDate.ToString(Consts.DateFormat)}");
+            sb.AppendLine($"> `date of end` → {EndDate.ToString(Consts.DateFormat)}");
+            sb.AppendLine($"> `event` → {Name}");
 
             if (this.LeadsIds.Count == 0)
                 return sb.ToString();
 
-            sb.AppendLine("> Ведущие: ");
+            sb.AppendLine("> `leads`: ");
 
             foreach (var leadId in LeadsIds)
-                sb.AppendLine($"> - <@{leadId}>");
+                sb.AppendLine($"> → <@{leadId}>");
 
-            sb.AppendLine("> Активные игроки");
-            foreach (var user in ActiveUsers)
-                sb.AppendLine($"> - <@{user}>");
+            if (this.ActiveUsers.Count > 0)
+            {
+                sb.AppendLine("> `active users`:");
+                foreach (var user in ActiveUsers)
+                    sb.AppendLine($"> - <@{user}>");
+            }
 
             return sb.ToString();
         }

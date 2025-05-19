@@ -1,99 +1,120 @@
-﻿using Discord;
-using Discord_Bot.Models;
+﻿using Discord_Bot.Models;
 using System.Text.Json;
-using System.Threading.Channels;
 
 namespace Discord_Bot.StaticModules
 {
     public static class LeadModule
     {
         private static readonly CloudflareApiHandler _api = new(Resources.Credentials["cloudflare-namespace-leads"]);
+
         private static readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
 
-        public static async Task<(bool, string)> GetAsync(string key)
+        private static async Task<(bool Success, List<ResultItem>? Keys, string? Error)> GetKeysAsync()
         {
             var (successAll, rawAll) = await _api.GetAllAsync();
 
             if (!successAll || string.IsNullOrWhiteSpace(rawAll))
-                return (false, "Ошибка получения списка ключей.");
+                return (false, null, "error getting key list");
 
-            var keys = JsonSerializer.Deserialize<List<ResultItem>>(
-                JsonDocument.Parse(rawAll).RootElement.GetProperty("result"), _jsonOptions);
+            try
+            {
+                var keys = JsonSerializer.Deserialize<List<ResultItem>>(
+                    JsonDocument.Parse(rawAll).RootElement.GetProperty("result"), _jsonOptions);
+        
+                return (true, keys, null);
+            }
+            catch (Exception ex)
+            {
+                return (false, null, $"error parsing keys: {ex.Message}");
+            }
+        }
 
-            if (keys?.Any(k => k.Name == key) != true)
-                return (false, "Ключ не найден");
+        private static async Task<(bool Success, string? Error)> UpdateLeadAsync(string key, Func<Lead, bool> updateAction)
+        {
+            var (success, json) = await _api.GetAsync(key);
+        
+            if (!success || string.IsNullOrWhiteSpace(json))
+                return (false, "error getting data");
 
-            var (success, result) = await _api.GetAsync(key);
-            if (!success || string.IsNullOrWhiteSpace(result))
-                return (false, "Ошибка получения данных");
+            var lead = Lead.FromJson(json);
+        
+            var changed = updateAction(lead);
+        
+            if (!changed)
+                return (true, null);
+
+            var newJson = JsonSerializer.Serialize(lead, _jsonOptions);
+        
+            var (putSuccess, error) = await _api.PutAsync(key, newJson);
+        
+            return putSuccess ? (true, null) : (false, error);
+        }
+
+
+        public static async Task<(bool, string)> GetAsync(string key)
+        {
+            var (getSuccess, result) = await _api.GetAsync(key);
+        
+            if (!getSuccess || string.IsNullOrWhiteSpace(result))
+                return (false, "error getting data");
 
             return (true, result);
         }
 
-        /// Increment the events count for a lead <param name="key">Lead ID</param>
         public static async Task<(bool, string?)> IncrementEventsCountAsync(List<ulong> leadsIds, DateTime startTime)
         {
             foreach (var key in leadsIds)
             {
-                var (success, result) = await GetAsync(key.ToString());
-                
+                var (success, error) = await UpdateLeadAsync(key.ToString(), lead =>
+                {
+                    lead.GamesCount++;
+        
+                    if (startTime.Month == DateTime.Now.Month)
+                        lead.GamesInCurrentMonthCount++;
+        
+                    return true;
+                });
+
                 if (!success)
-                    continue;
-                
-                var lead = Lead.FromJson(result);
-                lead.GamesCount++;
-                
-                if (startTime.Month == DateTime.Now.Month)
-                    lead.GamesInCurrentMonthCount++;
-
-                var json = JsonSerializer.Serialize(lead, _jsonOptions);
-
-                var (putSuccess, error) = await _api.PutAsync(key.ToString(), json);
-                if (!putSuccess)
                     return (false, error);
             }
 
-            return (true, "Put: Success");
+            return (true, "put: success");
         }
 
-        /// Decrement the events count for a lead <param name="key">Lead ID</param>
-        public static async Task<(bool, string?)> DecrementEventsCountAsync(List<ulong> leads, DateTime startTime)
+        public static async Task<(bool, string?)> DecrementEventsCountAsync(List<ulong> leadsIds, DateTime startTime)
         {
-            foreach (var key in leads)
+            foreach (var key in leadsIds)
             {
-                var (success, result) = await GetAsync(key.ToString());
+                var (success, error) = await UpdateLeadAsync(key.ToString(), lead =>
+                {
+                    lead.GamesCount = Math.Max(0, lead.GamesCount - 1);
+        
+                    if (startTime.Month == DateTime.Now.Month)
+                        lead.GamesInCurrentMonthCount = Math.Max(0, lead.GamesInCurrentMonthCount - 1);
+        
+                    return true;
+                });
 
                 if (!success)
-                    continue;
-
-                var lead = Lead.FromJson(result);
-                lead.GamesCount--;
-
-                if (startTime.Month == DateTime.Now.Month)
-                    lead.GamesInCurrentMonthCount--;
-
-                var json = JsonSerializer.Serialize(lead, _jsonOptions);
-                
-                var (putSuccess, error) = await _api.PutAsync(key.ToString(), json);
-                if (!putSuccess)
                     return (false, error);
             }
 
-            return (true, "Put: Success");
+            return (true, "put: success");
         }
 
         public static async Task<(bool, string)> PutAsync(ulong id)
         {
-            var (success, error) = 
+            var (success, error) =
                 await _api
                     .PutAsync(id
                     .ToString(), JsonSerializer
                     .Serialize(new Lead(id), _jsonOptions));
 
             if (!success)
-                return (false, $"Ошибка при добавлении: {error}");
-        
-            return (true, "Put: Success");
+                return (false, $"error adding: {error}");
+
+            return (true, "put: success");
         }
 
         public static async Task<(bool Success, List<(string ResultOrName, string Value)>)> GetListAsync()
@@ -101,15 +122,16 @@ namespace Discord_Bot.StaticModules
             var (successAll, rawAll) = await _api.GetAllAsync();
 
             if (!successAll)
-                return (false, [($"Ошибка получения списка ключей: {rawAll}", string.Empty)]);
+                return (false, [($"error getting key list: {rawAll}", string.Empty)]);
 
             var keys = JsonSerializer.Deserialize<List<ResultItem>>(
                 JsonDocument.Parse(rawAll!).RootElement.GetProperty("result"), _jsonOptions);
 
             if (keys == null || keys.Count == 0)
-                return (false, [("Ключи не найдены", string.Empty)]);
+                return (false, [("no keys found", string.Empty)]);
 
             var leads = new List<Lead>();
+        
             foreach (var key in keys)
             {
                 var json = await _api.GetAsync(key.Name);
@@ -121,92 +143,61 @@ namespace Discord_Bot.StaticModules
             }
 
             var result = new List<(string, string)>();
-            
+
             foreach (var lead in leads)
                 result.Add((lead.Id.ToString(), lead.ToString()));
-            
+
             return (true, result);
         }
 
         public static async Task<(bool Success, string Result)> DeleteAsync(string key)
         {
-            var (successAll, rawAll) = await _api.GetAllAsync();
-            if (!successAll)
-                return (false, "Ошибка получения списка ключей.");
+            var (success, keys, error) = await GetKeysAsync();
+        
+            if (!success || keys?.All(k => k.Name != key) == true)
+                return (false, error ?? "key not found");
 
-            var keys = JsonSerializer.Deserialize<List<ResultItem>>(
-                JsonDocument.Parse(rawAll!).RootElement.GetProperty("result"), _jsonOptions);
-            
-            if (keys == null || keys.Count == 0)
-                return (false, "Ключи не найдены");
-            
-            if (keys.All(k => k.Name != key))
-                return (false, "Ключ не найден");
-            
-            var (success, error) = await _api.DeleteAsync(key);
-
-            if (!success)
-                return (false, error ?? "Error");
-
-            return (true, "Delete: Success");
+            var (deleteSuccess, err) = await _api.DeleteAsync(key);
+        
+            return deleteSuccess ? (true, "delete: success") : (false, err ?? "error");
         }
 
         public static async Task<(bool Success, string Result)> NewMonthAsync()
         {
-            var (successAll, rawAll) = await _api.GetAllAsync();
-            
-            if (!successAll)
-                return (false, "Ошибка получения списка ключей.");
+            var (success, keys, error) = await GetKeysAsync();
 
-            var keys = JsonSerializer.Deserialize<List<ResultItem>>(
-                JsonDocument.Parse(rawAll!).RootElement.GetProperty("result"), _jsonOptions);
-
-            if (keys == null || keys.Count == 0)
-                return (false, "Ключи не найдены");
+            if (!success || keys == null || keys.Count == 0)
+                return (false, error ?? "no keys found");
 
             foreach (var key in keys)
             {
-                var json = await _api.GetAsync(key.Name);
-                if (!json.IsSuccess || json.Result == null)
-                    continue;
-                var lead = Lead.FromJson(json.Result);
-                lead.GamesInCurrentMonthCount = 0;
-                var newJson = JsonSerializer.Serialize(lead, _jsonOptions);
-                await _api.PutAsync(key.Name, newJson);
+                var (updateSuccess, updateError) = await UpdateLeadAsync(key.Name, lead =>
+                {
+                    lead.GamesInCurrentMonthCount = 0;
+                    return true;
+                });
+
+                if (!updateSuccess)
+                    return (false, updateError ?? "error updating");
             }
-            return (true, "New month: Success");
+
+            return (true, "new month: success");
         }
 
-        public static async Task<(bool Success, string Result)> Quota(string key, uint newQuota)
+        public static async Task<(bool Success, string Result)> QuotaAsync(string key, uint newQuota)
         {
-            var (successAll, rawAll) = await _api.GetAllAsync();
+            var (success, keys, error) = await GetKeysAsync();
 
-            if (!successAll)
-                return (false, "Ошибка получения списка ключей.");
+            if (!success || keys?.All(k => k.Name != key) == true)
+                return (false, error ?? "key not found");
 
-            var keys = JsonSerializer.Deserialize<List<ResultItem>>(
-                JsonDocument.Parse(rawAll!).RootElement.GetProperty("result"), _jsonOptions);
+            var (updateSuccess, updateError) = await UpdateLeadAsync(key, lead =>
+            {
+                lead.Quota = newQuota;
+                return true;
+            });
 
-            if (keys == null || keys.Count == 0)
-                return (false, "Ключи не найдены");
-
-            if (keys.All(k => k.Name != key))
-                return (false, "Ключ не найден");
-
-            var json = await _api.GetAsync(key);
-            if (!json.IsSuccess || json.Result == null)
-                return (false, "Ошибка получения данных");
-
-            var lead = Lead.FromJson(json.Result);
-            lead.Quota = newQuota;
-
-            var newJson = JsonSerializer.Serialize(lead, _jsonOptions);
-            var (putSuccess, error) = await _api.PutAsync(key, newJson);
-            
-            if (!putSuccess)
-                return (false, error ?? "Error");
-
-            return (true, "Put: Success");
+            return updateSuccess ? (true, "put: success") : (false, updateError ?? "error updating");
         }
     }
 }

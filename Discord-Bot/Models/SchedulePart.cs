@@ -40,18 +40,24 @@ namespace Discord_Bot.Models
         public override string ToString()
         {
             var sb = new StringBuilder();
-            sb.AppendLine($"> `Дата начала` → {StartDate}");
-            sb.AppendLine($"> `Игра` → {Name}");
+            sb.AppendLine($"> `date of start` → {StartDate.ToString(Consts.DateFormat)}");
+            sb.AppendLine($"> `event` → {Name}");
 
             if (this.LeadsIds.Count == 0)
                 return sb.ToString();
 
-            sb.AppendLine("> Ведущие:");
+            sb.AppendLine("> `leads`:");
 
             foreach (var leadId in LeadsIds)
-                sb.AppendLine($"> - <@{leadId}>");
+                sb.AppendLine($"> → <@{leadId}>");
 
             return sb.ToString();
+        }
+
+        public string ToStringPretty()
+        {
+            var leads = string.Join(" ", LeadsIds.Select(i => $"<@{i}>;"));
+            return $"{StartDate.ToString(Consts.DateFormat)}: {Name} -> {leads}";
         }
 
         public static SchedulePart SchedulePartFromJson(string fromJson)

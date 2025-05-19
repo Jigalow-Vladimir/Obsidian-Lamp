@@ -1,160 +1,180 @@
 ﻿using Discord;
 using Discord.Interactions;
-using Discord_Bot.Models;
 using Discord_Bot.StaticModules;
-using System.Text.Json;
+using System.Globalization;
 
 namespace Discord_Bot.SlashCommandModules
 {
-    [Group("schedule", "Команды для работы с расписанием")]
+    [Group("schedule", "controls the schedule")]
     public class ScheduleSlashCommandModule : InteractionModuleBase<SocketInteractionContext>
     {
-        private readonly CloudflareApiHandler _apiSchedule = new(Resources.Credentials["cloudflare-namespace-schedule"]);
-        private readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
+        private ITextChannel? GetTextChannel() => Context.Channel as ITextChannel;
 
-        [SlashCommand("get", "Выводит событие в расписании по ключу")]
-        public async Task Get([Summary("ключ")] string key)
+        [SlashCommand("get", "print an event in schedule by key")]
+        public async Task Get([Summary("key")] string key)
         {
-            await RespondAsync("Process...", ephemeral: true);
+            await RespondAsync("process...", ephemeral: true);
 
-            var channel = Context.Channel as ITextChannel;
-            if (channel == null)
-                return;
+            var channel = GetTextChannel();
 
-            var (successAll, rawAll) = await _apiSchedule.GetAllAsync();
-            if (!successAll)
-            {
-                await RespondAsync($"Ошибка получения списка ключей: {rawAll}", ephemeral: true);
-                return;
-            }
+            if (channel == null) return;
 
-            var keys = JsonSerializer.Deserialize<List<ResultItem>>(
-                JsonDocument.Parse(rawAll!).RootElement.GetProperty("result"), _jsonOptions);
+            var (success, result) = await ScheduleModule.GetAsync(key);
 
-            if (keys == null || !keys.Any(k => k.Name == key))
-            {
-                await RespondAsync("Ключ не найден", ephemeral: true);
-                return;
-            }
-
-            var (success, result) = await _apiSchedule.GetAsync(key);
-            if (!success)
-            {
-                await RespondAsync($"Ошибка получения данных: {result}", ephemeral: true);
-                return;
-            }
-
-            await channel.SendMessageAsync("Get: " + result);
-        }
-
-        [SlashCommand("put", "Добавляет событие в расписание")]
-        public async Task Put(
-            [Summary("событие")] string name, 
-            [Summary("ведущий_1")] IUser lead1, 
-            [Summary("дата_начала")] DateTime date,
-            [Summary("ведущий_2")] IUser? lead2 = null,
-            [Summary("ведущий_3")] IUser? lead3 = null)
-        {
-            await RespondAsync("Process...", ephemeral: true);
-            
-            var channel = Context.Channel as ITextChannel;
-            if (channel == null)
-                return;
-
-            var (success, result) = await ScheduleModule.PutAsync(name, lead1.Id, date, lead2?.Id, lead3?.Id);
-            if (!success)
-            {
-                await channel.SendMessageAsync($"Ошибка при добавлении: {result}");
-                return;
-            }
-
-            await channel.SendMessageAsync(embed: new EmbedBuilder()
-                .WithTitle(result)
-                .WithColor(Color.Green)
-                .Build());
-        }
-
-        [SlashCommand("delete", "Удаляет событие из расписания")]
-        public async Task Delete([Summary("ключ")] string key)
-        {
-            await RespondAsync("Process...", ephemeral: true);
-
-            var channel = Context.Channel as ITextChannel;
-            if (channel == null)
-                return;
-
-            var (success, result) = await ScheduleModule.DeleteAsync(key);
             if (!success)
             {
                 await RespondAsync(result);
                 return;
             }
 
-            await channel.SendMessageAsync(embed: new EmbedBuilder()
-                .WithTitle(result)
-                .WithColor(Color.Red).Build());
+            await channel.SendMessageAsync(success ? $"get: {result}" : $"error getting data: {result}");
         }
 
-        [SlashCommand("list", "Выводит события в расписании")]
+        [SlashCommand("put", "set an event in schedule")]
+        public async Task Put(
+            [Summary("event")] string name,
+            [Summary("lead_1")] IUser lead1,
+            [Summary("date_of_start", $"template: {Consts.DateFormat}")] string datestr,
+            [Summary("lead_2")] IUser? lead2 = null,
+            [Summary("lead_3")] IUser? lead3 = null)
+        {
+            await RespondAsync("process...", ephemeral: true);
+
+            var channel = GetTextChannel();
+
+            if (channel == null) return;
+
+            if (!DateTime.TryParseExact(
+                datestr,
+                Consts.DateFormat,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out DateTime date))
+            {
+                await channel.SendMessageAsync(Consts.DateFormatError);
+
+                return;
+            }
+
+            var (success, result) = await ScheduleModule
+                .PutAsync(name, lead1.Id, date, lead2?.Id, lead3?.Id);
+
+            var embed = new EmbedBuilder()
+                .WithTitle(result)
+                .WithColor(success ? Consts.SuccessColor : Consts.ErrorColor)
+                .Build();
+
+            await channel.SendMessageAsync(embed: embed);
+        }
+
+        [SlashCommand("delete", "removes an event from the schedule")]
+        public async Task Delete([Summary("key")] string key)
+        {
+            await RespondAsync("process...", ephemeral: true);
+
+            var channel = GetTextChannel();
+
+            if (channel == null) return;
+
+            var (success, result) = await ScheduleModule.DeleteAsync(key);
+
+            var embed = new EmbedBuilder().WithTitle(result).WithColor(success ? Consts.SuccessColor : Consts.ErrorColor).Build();
+
+            await channel.SendMessageAsync(embed: embed);
+        }
+
+        [SlashCommand("list", "displays events in the schedule")]
         public async Task List(
-            [Summary("количество", "Максимум 25")]
+            [Summary("count", "min: 1, max: 25")]
             [MaxValue(EmbedBuilder.MaxFieldCount)]
             [MinValue(1)]
             uint count = 1)
         {
-            await RespondAsync("Process...", ephemeral: true);
+            await RespondAsync("process...", ephemeral: true);
 
-            var channel = Context.Channel as ITextChannel;
-            if (channel == null)
-                return;
+            var channel = GetTextChannel();
 
-            var (successAll, rawAll) = await ScheduleModule.ListAsync(count);
+            if (channel == null) return;
 
-            if (!successAll)
-            {
-                await channel.SendMessageAsync($"Ошибка получения списка событий: {rawAll[0].Result}");
-                return;
-            }
-
-            await channel.SendMessageAsync(embed: new EmbedBuilder()
-                .WithTitle("События")
-                .WithColor(Color.Blue)
-                .WithFields(rawAll
-                    .Select(p => new EmbedFieldBuilder()
-                        .WithName(p.Result)
-                        .WithValue(p.Value))).Build());
-        }
-
-        [SlashCommand("complete", "Подтверждает выполнение события в расписании")]
-        public async Task Complete(
-            [Summary("ключ")] string key,
-            [Summary("время_окончания")] DateTime endTime,
-            [Summary("активный_участник_1")] IUser? activeUser1 = null,
-            [Summary("активный_участник_2")] IUser? activeUser2 = null,
-            [Summary("активный_участник_3")] IUser? activeUser3 = null)
-        {
-            await RespondAsync("Process...", ephemeral: true);
-
-            var channel = Context.Channel as ITextChannel;
-            if (channel == null)
-                return;
-
-            var (success, result) = await ScheduleModule.CompleteAsync(
-                key,
-                endTime,
-                activeUser1?.Id,
-                activeUser2?.Id,
-                activeUser3?.Id);
+            var (success, data) = await ScheduleModule.ListAsync(count);
 
             if (!success)
             {
-                await channel.SendMessageAsync(result);
+                await channel.SendMessageAsync($"error getting list of events: {data[0].Result}");
+            
                 return;
             }
-            await channel.SendMessageAsync(embed: new EmbedBuilder()
+
+            var embed = new EmbedBuilder()
+                .WithTitle("events")
+                .WithColor(Consts.InfoColor)
+                .WithFields(data.Select(p => new EmbedFieldBuilder().WithName(p.Result).WithValue(p.Value)))
+                .Build();
+
+            await channel.SendMessageAsync(embed: embed);
+        }
+
+        [SlashCommand("list-pretty", "displays events in the schedule")]
+        public async Task ListPretty(
+            [Summary("count", "min: 1, max: 25")]
+            [MaxValue(EmbedBuilder.MaxFieldCount)]
+            [MinValue(1)]
+            uint count = 1)
+        {
+            await RespondAsync("process...", ephemeral: true);
+
+            var channel = GetTextChannel();
+
+            if (channel == null) return;
+
+            var (success, data) = await ScheduleModule.ListAsync(count, true);
+
+            if (!success)
+            {
+                await channel.SendMessageAsync($"error getting list of events: {data[0].Result}");
+                return;
+            }
+
+            var result = string.Join("\n", data.Select(p => p.Value));
+            
+            var embed = new EmbedBuilder()
+                .WithTitle("events")
+                .WithColor(Consts.InfoColor)
+                .WithDescription(result)
+                .Build();
+
+            await channel.SendMessageAsync(embed: embed);
+        }
+
+        [SlashCommand("complete", "complete an event in schedule")]
+        public async Task Complete(
+            [Summary("key")] string key,
+            [Summary("end_date", $"template: {Consts.DateFormat}")] string endDateStr,
+            [Summary("active_user_1")] IUser? activeUser1 = null,
+            [Summary("active_user_2")] IUser? activeUser2 = null,
+            [Summary("active_user_3")] IUser? activeUser3 = null)
+        {
+            await RespondAsync("process...", ephemeral: true);
+
+            var channel = GetTextChannel();
+
+            if (channel == null) return;
+
+            if (!DateTime.TryParseExact(endDateStr, Consts.DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime endDate))
+            {
+                await channel.SendMessageAsync(Consts.DateFormatError);
+                return;
+            }
+
+            var (success, result) = await ScheduleModule.CompleteAsync(
+                key, endDate, activeUser1?.Id, activeUser2?.Id, activeUser3?.Id);
+
+            var embed = new EmbedBuilder()
                 .WithTitle(result)
-                .WithColor(Color.Green)
-                .Build());
+                .WithColor(success ? Consts.SuccessColor : Consts.ErrorColor)
+                .Build();
+
+            await channel.SendMessageAsync(embed: embed);
         }
     }
 }

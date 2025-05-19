@@ -4,8 +4,14 @@
 # .vs
 .vs/
 
+# Temp ignore
+WebApp/
+
 # User-credentials
 Discord-Bot/credentials.json
+
+# Deployment configuration
+Discord-Bot/fly.toml
 
 # User-specific files
 *.suo

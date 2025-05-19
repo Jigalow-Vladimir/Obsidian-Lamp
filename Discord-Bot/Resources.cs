@@ -5,7 +5,8 @@ namespace Discord_Bot
     public static class Resources
     {
         private const string _credentialsPath = "credentials.json";
-        public static Dictionary<string, string> Credentials;
+
+        public static Dictionary<string, string> Credentials = [];
 
         public static async Task SetCredentialsAsync()
         {

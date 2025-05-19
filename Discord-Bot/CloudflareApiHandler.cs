@@ -30,10 +30,12 @@ namespace Discord_Bot
             try
             {
                 var response = await httpClient.GetAsync(key);
+
                 if (!response.IsSuccessStatusCode)
                     return (false, $"GET error: {response.StatusCode}");
 
                 var content = await response.Content.ReadAsStringAsync();
+
                 return (true, content ?? "");
             }
             catch (Exception ex)
@@ -50,6 +52,7 @@ namespace Discord_Bot
                     return (false, "BaseAddress is null");
 
                 var content = new StringContent(value);
+
                 var response = await httpClient.PutAsync(new Uri(httpClient.BaseAddress, key), content);
 
                 if (!response.IsSuccessStatusCode)
@@ -95,10 +98,12 @@ namespace Discord_Bot
                     $"/keys";
 
                 var response = await httpClient.GetAsync(uri);
+
                 if (!response.IsSuccessStatusCode)
                     return (false, $"GET ALL error: {response.StatusCode}");
 
                 var content = await response.Content.ReadAsStringAsync();
+
                 return (true, content ?? "");
             }
             catch (Exception ex)

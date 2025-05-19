@@ -1,42 +1,32 @@
 ﻿using Discord_Bot.Models;
 using System.Text.Json;
-using System.Threading.Channels;
 
 namespace Discord_Bot.StaticModules
 {
     public static class ScheduleModule
     {
         private static readonly CloudflareApiHandler _apiSchedule = new(Resources.Credentials["cloudflare-namespace-schedule"]);
+
         private static readonly CloudflareApiHandler _apiEvents = new(Resources.Credentials["cloudflare-namespace-events"]);
+
         private static readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
 
-        public static async Task<(bool Success, string Result)> GetAsync(string key) 
+        public static async Task<(bool Success, string Result)> GetAsync(string key)
         {
-            var (successAll, rawAll) = await _apiSchedule.GetAllAsync();
-
-            if (!successAll || string.IsNullOrWhiteSpace(rawAll))
-                return (false, "Ошибка получения списка ключей.");
-            
-            var keys = JsonSerializer.Deserialize<List<ResultItem>>(
-                JsonDocument.Parse(rawAll).RootElement.GetProperty("result"), _jsonOptions);
-            
-            if (keys?.Any(k => k.Name == key) != true)
-                return (false, "Ключ не найден");
-            
             var (success, result) = await _apiSchedule.GetAsync(key);
-            
+
             if (!success || string.IsNullOrWhiteSpace(result))
-                return (false, "Ошибка получения данных");
-            
+                return (false, "failed to get data");
+
             return (true, result);
         }
-        
+
         public static async Task<(bool Success, string Result)> PutAsync(
-            string name, 
-            ulong lead1Id, 
+            string name,
+            ulong lead1Id,
             DateTime date,
             ulong? lead2Id,
-            ulong? lead3Id) 
+            ulong? lead3Id)
         {
             var leads = new List<ulong> { lead1Id };
 
@@ -49,65 +39,78 @@ namespace Discord_Bot.StaticModules
             var part = new SchedulePart(name, leads, date);
 
             var json = JsonSerializer.Serialize(part, _jsonOptions);
-            
+
             var (success, result) = await _apiSchedule.PutAsync(part.Key, json);
-            
+
             if (!success)
-                return (false, result ?? "Error");
-            
-            return (true, "Put: Success");
+                return (false, result ?? "error");
+
+            return (true, "put: success");
         }
 
-        public static async Task<(bool Success, string Result)> DeleteAsync(string key) 
+        public static async Task<(bool Success, string Result)> DeleteAsync(string key)
         {
             var (success, result) = await _apiSchedule.DeleteAsync(key);
-            if (!success)
-                return (false, $"Ошибка удаления: {result}");
 
-            return (true, "Delete: Success");
+            if (!success)
+                return (false, $"delete failed: {result}");
+
+            return (true, "delete: success");
         }
 
-        public static async Task<(bool Success, List<(string Result, string Value)> Result)> ListAsync(uint count)
+        public static async Task<(bool Success, List<(string Result, string Value)> Result)> ListAsync(uint count, bool isPretty = false)
         {
             var (success, result) = await _apiSchedule.GetAllAsync();
-            
+
             if (!success || string.IsNullOrWhiteSpace(result))
-                return (false, [("Ошибка получения списка ключей.", string.Empty)]);
-            
+                return (false, [("failed to get key list", string.Empty)]);
+
             var keys = JsonSerializer.Deserialize<List<ResultItem>>(
                 JsonDocument.Parse(result).RootElement.GetProperty("result"), _jsonOptions);
 
             if (keys == null || keys.Count == 0)
-                return (false, [("Ошибка получения списка.", string.Empty)]);
+                return (false, [("no keys found", string.Empty)]);
 
-            var parts = new List<Part>();
+            var parts = new List<SchedulePart>();
+
             for (int i = 0; i < count && i < keys.Count; i++)
             {
                 (success, result) = await _apiSchedule.GetAsync(keys[i].Name);
+
                 if (!success || string.IsNullOrWhiteSpace(result))
                     continue;
 
-                var part = JsonSerializer.Deserialize<Part>(result, _jsonOptions);
+                var part = JsonSerializer.Deserialize<SchedulePart>(result, _jsonOptions);
+
                 if (part != null)
                     parts.Add(part);
             }
 
             if (parts.Count == 0)
-                return (false, [("Нет данных.", "")]);
+                return (false, [("no data", "")]);
 
-            return (true, parts.Select(p => (p.Key, p.ToString())).ToList());
+            (bool, List<(string, string)>) resultList;
+
+            if (isPretty)
+                resultList = (true, parts.Select(p => (p.Key, p.ToStringPretty())).ToList());
+
+            else resultList = (true, parts.Select(p => (p.Key, p.ToString())).ToList());
+
+            return resultList;
         }
 
         public static async Task<(bool Success, string Result)> CompleteAsync(string key,
             DateTime endTime, ulong? user1Id, ulong? user2Id, ulong? user3Id)
         {
             var (success, rawPart) = await _apiSchedule.GetAsync(key);
+
             if (!success)
-                return (false, $"Ошибка получения события: {rawPart}");
+                return (false, $"failed to get event: {rawPart}");
 
             var schedulePart = JsonSerializer.Deserialize<SchedulePart>(rawPart!, _jsonOptions);
+
             if (schedulePart == null)
-                return (false, "Ошибка при десериализации события");
+                return (false, "deserialization failed");
 
             var usersIds = new List<ulong>();
 
@@ -120,25 +123,24 @@ namespace Discord_Bot.StaticModules
             if (user3Id != null)
                 usersIds.Add((ulong)user3Id);
 
-            var part = Part.ModifyToPart(
-                schedulePart,
-                endTime,
-                usersIds);
+            var part = Part.ModifyToPart(schedulePart, endTime, usersIds);
 
             if (part == null)
-                return (false, "Ошибка при формировании завершённого события");
+                return (false, "failed to build completed event");
 
             var json = JsonSerializer.Serialize(part, _jsonOptions);
 
             var (putSuccess, putError) = await _apiEvents.PutAsync(schedulePart.Key, json);
+
             if (!putSuccess)
-                return (false, $"Ошибка сохранения события: {putError}");
+                return (false, $"save failed: {putError}");
 
             var (deleteSuccess, deleteError) = await _apiSchedule.DeleteAsync(key);
-            if (!deleteSuccess)
-                return (false, $"Ошибка удаления исходного события: {deleteError}");
 
-            return (true, "Complete: Success");
+            if (!deleteSuccess)
+                return (false, $"original delete failed: {deleteError}");
+
+            return (true, "complete: success");
         }
     }
 }

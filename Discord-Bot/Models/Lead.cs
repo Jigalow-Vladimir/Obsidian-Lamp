@@ -17,10 +17,10 @@ namespace Discord_Bot.Models
         public override string ToString()
         {
             return
-                $"> `Id` → {Id}\n" +
-                $"> `Количество игр` → {GamesCount}\n" +
-                $"> `Количество игр в этом месяце` → {GamesInCurrentMonthCount}\n" +
-                $"> `Квота`: {Quota}";
+                $"> `lead` → <@{Id}>\n" +
+                $"> `event count` → {GamesCount}\n" +
+                $"> `current month event count` → {GamesInCurrentMonthCount}\n" +
+                $"> `quota`: {Quota}";
         }
 
         public static Lead FromJson(string fromJson)
