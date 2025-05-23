@@ -48,4 +48,4 @@ DB  Lamp:
     T EventUser
 ```
 
-![Lamp Database](screenshots/00-BD.png)
+![Lamp Database](https://github.com/Jigalow-Vladimir/Obsidian-Lamp/blob/main/Discord-Bot/Screenshots/00-BD.png)
